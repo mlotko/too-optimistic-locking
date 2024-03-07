@@ -6,7 +6,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import pl.lotko.example.optimistic.phonebook.core.PhoneBookPersistService;
-import pl.lotko.example.optimistic.phonebook.core.VersionMismatchException;
 
 import java.util.Optional;
 
@@ -32,7 +31,14 @@ class PhoneBookItemController {
             @PathVariable Long id,
             @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false, defaultValue = "*") String etag
     ) {
-        return parseEtagToVersion(etag)
+        final Optional<Long> version;
+        try {
+            version = parseEtagToVersion(etag);
+        } catch (NumberFormatException ex) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return version
                 .flatMap(requestedVersion -> phoneBookPersistService.getSavedIfNotVersion(id, requestedVersion))
                 .or(() -> phoneBookPersistService.getSaved(id))
                 .map(got -> splitToBodyAndEtag(got, HttpStatus.OK))
@@ -45,18 +51,20 @@ class PhoneBookItemController {
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String etag,
             @RequestBody PhoneBookItemRequestDto newPhoneBookItemDto
     ) {
-        if (etag == null || etag.isBlank()) {
-            return ResponseEntity
-                    .status(HttpStatus.PRECONDITION_REQUIRED)
-                    .header(HttpHeaders.EXPECT)
-                    .build();
+        final Optional<Long> version;
+        try {
+            version = parseEtagToVersion(etag);
+        } catch (NumberFormatException ex) {
+            return ResponseEntity.notFound().build();
         }
-        return parseEtagToVersion(etag)
+        return version
                 .map(requestedVersion -> phoneBookPersistService.replaceExisting(id, new Validable<>(requestedVersion, newPhoneBookItemDto))
                         .map(replaced -> splitToBodyAndEtag(replaced, HttpStatus.OK))
                         .orElseGet(() -> ResponseEntity.notFound().build()))
-                .orElseGet(
-                        () -> ResponseEntity.status(HttpStatus.PRECONDITION_FAILED).build());
+                .orElseGet(() -> ResponseEntity
+                        .status(HttpStatus.PRECONDITION_REQUIRED)
+                        .header(HttpHeaders.EXPECT)
+                        .build());
     }
 
     private ResponseEntity<PhoneBookItemResponseDto> splitToBodyAndEtag(Validable<Long, PhoneBookItemResponseDto> saved, HttpStatus status) {
@@ -66,14 +74,10 @@ class PhoneBookItemController {
     }
 
     private Optional<Long> parseEtagToVersion(String etag) {
-        try {
-            return Optional.ofNullable(etag)
-                    .filter(not(String::isBlank))
-                    .map(String::trim)
-                    .filter(not("*"::equals))
-                    .map(Long::valueOf);
-        } catch (NumberFormatException parseException) {
-            throw new VersionMismatchException(parseException.getMessage(), parseException);
-        }
+        return Optional.ofNullable(etag)
+                .filter(not(String::isBlank))
+                .map(String::trim)
+                .filter(not("*"::equals))
+                .map(Long::valueOf);
     }
 }
