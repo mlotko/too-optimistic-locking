@@ -10,10 +10,12 @@ content-type: application/json
 ###
 GET http://localhost:8080/api/phone-book/item/2
 accept: application/json
+if-none-match: *
 
 ###
 PUT http://localhost:8080/api/phone-book/item/2
 content-type: application/json
+if-match: 2
 
 {
   "name" : "Sobieslaw",
