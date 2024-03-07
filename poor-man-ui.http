@@ -1,0 +1,23 @@
+POST http://localhost:8080/api/phone-book/item
+content-type: application/json
+
+{
+  "name" : "Jan",
+  "family_name" : "Kowalski",
+  "phone": "+48123456789"
+}
+
+###
+GET http://localhost:8080/api/phone-book/item/2
+accept: application/json
+
+###
+PUT http://localhost:8080/api/phone-book/item/2
+content-type: application/json
+
+{
+  "name" : "Sobieslaw",
+  "family_name" : "Nowak",
+  "phone": "+48123456789"
+}
+
